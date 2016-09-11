@@ -30,7 +30,7 @@ import DOM.Node.NonElementParentNode as D
 import Thermite as T
 import React as R
 import React.DOM as R
-import React.DOM.Props as R
+import React.DOM.Props hiding (span) as R
 import ReactDOM as RDOM
 
 import Network.HTTP.Affjax (AJAX, get, post)
@@ -76,6 +76,10 @@ type ExplorerState = { zipper :: List DirZipper, focus :: Dir }
 
 data ExplorerAction = Up | Down Int
 
+fileEndpoint = "/file"
+explorerContainer = "explorer"
+dirEndpoint = "/dir"
+
 explorerSpec :: T.Spec _ ExplorerState _ ExplorerAction
 explorerSpec = T.simpleSpec performAction render
   where performAction :: T.PerformAction _ ExplorerState _ ExplorerAction
@@ -93,27 +97,28 @@ explorerSpec = T.simpleSpec performAction render
               { zipper: zs, focus: d }
           where getParentSubdirs :: List Dir -> Dir -> List Dir -> List Dir
                 getParentSubdirs Nil c r = c:r
-                getParentSubdirs (Cons l ls) c r = getParentSubdirs ls l (Cons c r)
+                getParentSubdirs (l:ls) c r = getParentSubdirs ls l (c:r)
 
         -- go down on a subdirectory
         pressDown :: Int -> ExplorerState -> ExplorerState
         pressDown n st =
           case st.focus of
             Dir { subdirs: Nil } -> st
-            Dir { subdirs: Cons d ds, name: name, files: files } -> 
+            Dir { subdirs: Cons d ds, files: pfiles, name: pname } -> 
               let res    = getFocus n { left: Nil, focus: d, right: ds } in
-              let parent = { name: name
-                           , files: files
+              let parent = { name: pname
+                           , files: pfiles
                            , left: res.left
                            , right: res.right } in
-              { zipper: Cons parent (st.zipper), focus: res.focus }
+              { zipper: parent:(st.zipper), focus: res.focus }
+
           where getFocus :: Int -> Focus Dir -> Focus Dir
                 getFocus 0 acc = acc
                 getFocus n f =
                   case f.right of
                     Nil -> f
                     Cons r rs -> getFocus (n-1) {
-                                   left: Cons (f.focus) (f.left)
+                                   left: (f.focus):(f.left)
                                  , focus: r
                                  , right: rs }
 
@@ -122,30 +127,44 @@ explorerSpec = T.simpleSpec performAction render
           let subdirs     = getSubdirs st.focus in
           let nsubdirs    = zip (0 .. ((length subdirs)-1)) subdirs in
           let files       = getFiles st.focus in
+          let pathlist    = reverse $ (getName st.focus):(map (\z -> z.name) st.zipper) in
+          let pathlist'   = filter (\p -> S.length p > 0) pathlist in
+          let path        = S.joinWith "/" $ toUnfoldable $ fileEndpoint:pathlist' in
           let subdirNodes = map (uncurry renderSubdir) nsubdirs in
-          let fileNodes   = map renderFile files in
+          let fileNodes   = map (renderFile path) files in
           [
-            R.div [] [
-              R.button [ R.onClick (const $ dispatch Up) ] [ R.text "Up" ]
-            , R.div [] $ toUnfoldable $ subdirNodes <> fileNodes
+            R.div [R.className "row top30"] [
+              R.div [R.className "col-md-1"] [
+                R.span [ R.className "press-up", R.onClick (const $ dispatch Up) ] [ R.text "<" ]
+              ],
+              R.div [R.className "col-md-11"] [
+                R.span [R.className "h2 dir-name"] [R.text (getName st.focus)],
+                R.text (show (length (getFiles st.focus)) <> " items")
+              ]
+            ],
+            R.div [R.className "row top20"] [
+              R.div [R.className "col-md-11 col-md-offset-1"] $ toUnfoldable $ subdirNodes <> fileNodes
             ]
           ]
           where getSubdirs (Dir d)      = d.subdirs
                 getFiles (Dir d)        = d.files
+                getName (Dir d)         = d.name
                 renderSubdir i (Dir d)  =
-                  R.div [] [
-                    R.a [R.href "#", R.onClick (const $ dispatch $ Down i)] [
-                      R.text (show i <> ": " <> d.name)
-                    ]
+                  R.div [R.className "dir-item", R.onClick (const $ dispatch $ Down i)] [
+                    R.text ("■ " <> d.name)
                   ]
-                renderFile filename =
-                  R.div [] [ R.text filename ]
+                renderFile path filename =
+                  R.div [R.className "file-item"] [
+                    R.a [R.href (path <> "/" <> filename)] [
+                      R.text ("□ " <> filename)
+                    ]
+                ]
 
 main = do
   runAff fail success fetchCopyboxData
   where fetchCopyboxData :: forall a. Aff (ajax :: AJAX | a) String
         fetchCopyboxData = do
-          res <- get "/test"
+          res <- get dirEndpoint
           pure res.response
 
         fail err = do
@@ -179,11 +198,10 @@ main = do
           let explorerClass     = T.createClass explorerSpec initExplorerState
           let explorer          = R.createFactory explorerClass {}
           RDOM.render explorer container
-          log $ show dir
           pure unit
 
         -- surprise! CPS saves the day
         success res = withData res $ \d ->
-                      withContainer "content" $ \c ->
+                      withContainer explorerContainer $ \c ->
                       runExplorer d c
 

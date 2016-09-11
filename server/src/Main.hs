@@ -23,35 +23,39 @@ data Dir = Dir { name :: T.Text, files :: [T.Text], subdirs :: [Dir] }
 
 instance ToJSON Dir
 
-type CopyboxAPI = "test" :> Get '[JSON] Dir
+type CopyboxAPI = "dir" :> Get '[JSON] Dir
              :<|> "web" :> Raw
+             :<|> "file" :> Raw
 
 -- obviously you should change this
 rootDir = "/home/rolph/Copy/References"
 
 copyboxServer :: Server CopyboxAPI
-copyboxServer = fetchDir rootDir :<|> serveDirectory "../client/build"
+copyboxServer = fetchDir "" rootDir
+           :<|> serveDirectory "../client/build"
+           :<|> serveDirectory rootDir
   where -- recursively traverses a directory and returns its contents
-        fetchDir :: FilePath -> Handler Dir
-        fetchDir dirname = do
-          dc <- lift $ getDirectoryContents dirname
+        fetchDir :: FilePath -> FilePath -> Handler Dir
+        fetchDir relname absname = do
+          dc <- lift $ getDirectoryContents absname
           (files, dirs) <- lift $ foldM getContent ([], []) dc
 
           let fcs = map T.pack files
           let dirs' = filter (\d -> not (d == "." || d == "..")) dirs
           -- recursive calls to get subdirectories
-          dcs <- forM dirs' $ \dir -> fetchDir $ dirname <> "/" <> dir
+          dcs <- forM dirs' $ \dir -> fetchDir dir (absname <> "/" <> dir)
 
-          return $ Dir (T.pack dirname) fcs dirs
+          return $ Dir (T.pack relname) fcs dcs
           where getContent (fa, da) name = do
-                  let cname = dirname <> "/" <> name
+                  let cname = absname <> "/" <> name
                   fexist <- doesFileExist cname
-                  dexist <- doesDirectoryExist cname
                   if fexist
                   then return (name:fa, da)
-                  else if dexist
-                       then return (fa, name:da)
-                       else return (fa, da)
+                  else do
+                    dexist <- doesDirectoryExist cname
+                    if dexist
+                    then return (fa, name:da)
+                    else return (fa, da)
 
 app :: Application
 app = serve (Proxy :: Proxy CopyboxAPI) copyboxServer

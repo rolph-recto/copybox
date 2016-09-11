@@ -182,7 +182,7 @@ main = do
           log $ show dir
           pure unit
 
-        -- surprise CPS
+        -- surprise! CPS saves the day
         success res = withData res $ \d ->
                       withContainer "content" $ \c ->
                       runExplorer d c

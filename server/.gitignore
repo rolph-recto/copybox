@@ -1,1 +1,4 @@
 /.stack-work/
+*.conf
+*.crt
+*.key

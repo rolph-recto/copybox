@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+
+cb_start() { 
+  if [[ -e $COPYBOX_DIR/copybox.pid ]]; then
+    local pid
+    pid=$(cat $COPYBOX_DIR/copybox.pid)
+    printf 'A copybox server already exists (PID %s)\n' $pid
+  else
+    $COPYBOX_DIR/copybox-server &
+    local pid
+    pid=$!
+    echo $pid > $COPYBOX_DIR/copybox.pid
+    echo $(date +%s) > $COPYBOX_DIR/copybox.time
+    printf 'Started copybox server (PID %s)\n' $pid
+  fi
+}
+
+cb_stop() {
+  if [[ -e $COPYBOX_DIR/copybox.pid ]]; then
+    local pid
+    pid=$(cat $COPYBOX_DIR/copybox.pid)
+    if [[ $(kill $pid) -eq 0 ]]; then
+      rm $COPYBOX_DIR/copybox.pid
+      rm $COPYBOX_DIR/copybox.time
+      printf 'Stopped copybox server (PID %s)\n' $pid
+    else
+      printf 'Could not kill server w/ PID %s\n' $pid
+    fi
+  else
+    echo 'The copybox server is not running.'
+  fi
+}
+
+cb_restart() {
+  if [[ -e $COPYBOX_DIR/copybox.pid ]]; then
+    cb_stop
+    cb_start
+  else
+    echo 'Copybox server is not running.'
+  fi
+}
+
+cb_info() {
+  if [[ -e $COPYBOX_DIR/copybox.pid ]]; then
+    local pid
+    pid=$(cat $COPYBOX_DIR/copybox.pid)
+    printf 'Copybox server PID: %s\n' $pid
+
+    if [[ -e $COPYBOX_DIR/copybox.time ]]; then
+      local t
+      t=$(cat $COPYBOX_DIR/copybox.time)
+      local now
+      now=$(date +%s)
+      printf 'Started at: %s\n' "$(date -d @$t -R)"
+      printf 'Time elapsed since start: %s\n' "$(date -u -d @$(($now - $t)) +'%Hh %Mm %Ss')"
+    fi
+  else
+    echo 'The copybox server is not running.'
+  fi
+}
+
+cb_usage() {
+  echo 'USAGE: copybox [CMD]'
+  echo '[CMD] options:'
+  echo '  - start: start the copybox server'
+  echo '  - stop: stop the copybox server'
+  echo '  - restart: stop the copybox server'
+  echo '  - info: get information about the copybox server'
+}
+
+if [[ -n "$COPYBOX_DIR" ]]; then
+  case $1 in 
+    start) cb_start ;;
+    stop) cb_stop ;;
+    restart) cb_restart ;;
+    info) cb_info ;;
+    *) cb_usage ;;
+  esac
+else
+  echo "COPYBOX_DIR env variable is not set. I don't know where copybox is!"
+fi
+

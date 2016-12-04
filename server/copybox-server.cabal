@@ -20,6 +20,7 @@ executable copybox-server
   -- other-modules:       
   -- other-extensions:    
   build-depends:      base
+                    , data-default
                     , text
                     , bytestring
                     , mtl
@@ -32,5 +33,8 @@ executable copybox-server
                     , warp-tls
                     , servant
                     , servant-server
+                    , vault
+                    , wai-session
+                    , http-types
   hs-source-dirs:     src
   default-language:   Haskell2010

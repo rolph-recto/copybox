@@ -76,9 +76,9 @@ type ExplorerState = { zipper :: List DirZipper, focus :: Dir }
 
 data ExplorerAction = Up | Down Int
 
-fileEndpoint = "/file"
+fileEndpoint = "/copybox/file"
 explorerContainer = "explorer"
-dirEndpoint = "/dir"
+dirEndpoint = "/copybox/dir"
 
 explorerSpec :: T.Spec _ ExplorerState _ ExplorerAction
 explorerSpec = T.simpleSpec performAction render
@@ -171,6 +171,7 @@ main = do
           log $ message err
         
         withData res k = do
+          log res
           case jsonParser res of
             Left err -> do
               log err

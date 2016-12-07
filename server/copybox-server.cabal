@@ -21,6 +21,7 @@ executable copybox-server
   -- other-extensions:    
   build-depends:      base
                     , data-default
+                    , random
                     , text
                     , bytestring
                     , mtl
@@ -31,8 +32,10 @@ executable copybox-server
                     , wai
                     , warp
                     , warp-tls
+                    , blaze-html
                     , servant
                     , servant-server
+                    , servant-blaze
                     , vault
                     , wai-session
                     , http-types
